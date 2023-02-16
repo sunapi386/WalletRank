@@ -15,6 +15,7 @@ def PageRank(graph, d, iteration=100):
         PageRank_one_iter(graph, d)
 
 
+
 if __name__ == '__main__':
 
     iteration = 100

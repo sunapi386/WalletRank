@@ -149,126 +149,34 @@ A table for transaction outputs. 156,647,847 rows.
 | `reference_script_id` | integer (64) |          | The reference script of the output, if it has one. New in v13.                                                                        |
 
 
-### Creating a view
+# Data Preparation
 
 What we care about are, given the scope of our problem described in the [Modeled Signal section](#modeled-signals):
 
-- Who is Alice? Namely, the `stake_address_id` of the `tx_in`.
-- Who is Bob? The `stake_address_id` of the `tx_out`.
+- What is the sender's address?
+- Who is the receiver?
+- What amount?
 
-In Cardano, "stake key" can be thought of as a wallet. Since `stake_address_id` uniquely maps to a stake key, it
-suffices to just build a table `stake_address_id`. If we need the actual stake address, it is one lookup away.
+In Cardano, "stake key" can be thought of as a wallet. Since `address` can uniquely map to a stake key, it may
+be enough to just build a table `stake_address_id`. However, `stake_address_id` may be `NULL`, which means that
+transaction some transactions would have null sender and/or receiver.
 
-The reason we build this table is to speed up the queries so that joins are performed by the database itself, rather
-than pulling data to code and doing joins ourselves, saving the network bandwidth.
+Each Cardano address can be transformed into a stake key, which represents a wallet. Wallets have many addresses,
+adding to a layer of indirection. An intermediate table is needed, for
 
-Let's look at the most recent transactions.
-Taking a look at the transactions.
-```
-dbsync=# select id from tx order by id desc limit 1 offset 2;
-    id
------------
- 114221813
-(1 row)
-```
 
-Build a table with this
-
-```sql
-SELECT prev_tx_out.stake_address_id sender ,
-       this_tx_out.stake_address_id receiver ,
-       this_tx_out.value amount
-FROM tx this_tx
-INNER JOIN tx_out this_tx_out ON this_tx_out.tx_id = this_tx.id
-INNER JOIN tx_in this_tx_in ON this_tx_in.tx_in_id = this_tx.id
-INNER JOIN tx_out prev_tx_out ON prev_tx_out.tx_id = this_tx_in.tx_out_id
-AND prev_tx_out.index = this_tx_in.tx_out_index
-WHERE this_tx.id > 114221813;
-```
-
-This outputs
-
-|  sender  | receiver |  amount   |
-|----------|----------|-----------|
-| 10751507 |  8765948 |   1344720|
-|  8765948 |  8765948 |   1344720|
-| 10751507 | 10751507 | 246589963|
-|  8765948 | 10751507 | 246589963|
-| 10751507 | 10751507 | 123294982|
-|  8765948 | 10751507 | 123294982|
-| 10751507 | 10751507 | 122963166|
-|  8765948 | 10751507 | 122963166|
-|  8765948 | 10335905 |   3675000|
-| 10167344 | 10335905 |   3675000|
-|  8765948 |  8665866 |   2100000|
-| 10167344 |  8665866 |   2100000|
-|  8765948 | 10693011 |  99225000|
-| 10167344 | 10693011 |  99225000|
-|  8765948 | 10167344 |   1168010|
-| 10167344 | 10167344 |   1168010|
-|  8765948 | 10167344 | 698382565|
-| 10167344 | 10167344 | 698382565|
-|  8765948 | 10167344 | 349191283|
-| 10167344 | 10167344 | 349191283|
-|  8765948 | 10167344 | 174595641|
-| 10167344 | 10167344 | 174595641|
-|  8765948 | 10167344 | 174157719|
-| 10167344 | 10167344 | 174157719|
-
-### Postgres feature: Material View
+### Creating a material view (Postgres feature)
 
 Materialized views cache the fetched data. The use cases for using materialized views are when
 the underlying query takes a long time and when having timely data is not critical. You often encounter these
 scenarios when building online analytical processing (OLAP) applications. Material view differs from a regular
 View in that you can add indexes to materialized views to speed up the read.
 
-What we need is in 3 tables and only some columns are useful. We can build a material view table, so the database
-can help out in preparing the data we need for building the WalletRank graph.
+The reason we build a material view table is to cache the results for this complex join that is performed by the
+database itself, rather than pulling data to code and doing joins ourselves, saving the network bandwidth.
 
-```sql
-CREATE MATERIALIZED VIEW sender_reciver_amount AS
-SELECT prev_tx_out.stake_address_id sender ,
-       this_tx_out.stake_address_id receiver ,
-       this_tx_out.value amount
-FROM tx this_tx
-INNER JOIN tx_out this_tx_out ON this_tx_out.tx_id = this_tx.id
-INNER JOIN tx_in this_tx_in ON this_tx_in.tx_in_id = this_tx.id
-INNER JOIN tx_out prev_tx_out ON prev_tx_out.tx_id = this_tx_in.tx_out_id
-AND prev_tx_out.index = this_tx_in.tx_out_index
-WHERE this_tx.id > 114221813;
-```
+For sake of limiting scope, let's look at Taking a look at the last 1M transactions.
 
-Double check we have the view
-
-```
-dbsync=# select * from sender_reciver_amount;
-  sender  | receiver |  amount
-----------+----------+-----------
- 10751507 |  8765948 |   1344720
-  8765948 |  8765948 |   1344720
- 10751507 | 10751507 | 246589963
-  8765948 | 10751507 | 246589963
- 10751507 | 10751507 | 123294982
-  8765948 | 10751507 | 123294982
- 10751507 | 10751507 | 122963166
-  8765948 | 10751507 | 122963166
-  8765948 | 10335905 |   3675000
- 10167344 | 10335905 |   3675000
-  8765948 |  8665866 |   2100000
- 10167344 |  8665866 |   2100000
-  8765948 | 10693011 |  99225000
- 10167344 | 10693011 |  99225000
-  8765948 | 10167344 |   1168010
- 10167344 | 10167344 |   1168010
-  8765948 | 10167344 | 698382565
- 10167344 | 10167344 | 698382565
-  8765948 | 10167344 | 349191283
- 10167344 | 10167344 | 349191283
-  8765948 | 10167344 | 174595641
- 10167344 | 10167344 | 174595641
-  8765948 | 10167344 | 174157719
- 10167344 | 10167344 | 174157719
-```
 
 ### Prepare a material view for the last 1M entries.
 
@@ -282,11 +190,15 @@ dbsync=# select id from tx order by id desc limit 1 offset 10000000;
 Time: 18300.319 ms (00:18.300)
 ```
 
+What we need is in 3 tables and only some columns are useful. We can build a material view table, so the database
+can help out in preparing the data we need for building the WalletRank graph.
+
 ```
-dbsync=# CREATE MATERIALIZED VIEW sender_reciver_amount AS
-SELECT prev_tx_out.stake_address_id sender ,
-       this_tx_out.stake_address_id receiver ,
-       this_tx_out.value amount
+dbsync=# CREATE MATERIALIZED VIEW sender_reciver_amount_id AS
+SELECT prev_tx_out.address  sender ,
+       this_tx_out.address  receiver ,
+       this_tx_out.value    amount,
+       this_tx.id           tx_id
 FROM tx this_tx
 INNER JOIN tx_out this_tx_out ON this_tx_out.tx_id = this_tx.id
 INNER JOIN tx_in this_tx_in ON this_tx_in.tx_in_id = this_tx.id
@@ -294,5 +206,50 @@ INNER JOIN tx_out prev_tx_out ON prev_tx_out.tx_id = this_tx_in.tx_out_id
 AND prev_tx_out.index = this_tx_in.tx_out_index
 WHERE this_tx.id > 103167513;
 SELECT 169393154
-Time: 510572.550 ms (08:30.573)
+Time: 970864.750 ms (16:10.865)
+
+```
+
+Here's 10 results from this material view
+
+### Material View Table `sender_reciver_amount_id`
+
+This table is 33GB. It will not fit in memory.
+
+| Schema | Name                     | Type              | Owner   | Persistence | Access method | Size  | Description |
+|:-------|:-------------------------|:------------------|:--------|:------------|:--------------|:------|:------------|
+| public | sender_reciver_amount_id | materialized view | cardano | permanent   | heap          | 33 GB |             |
+
+
+|                                                 sender                                                  |                                                receiver                                                 |   amount    |   tx_id   |
+|---------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------|-------------|-----------|
+| addr1qy9yrva9vnxjd09vvnr7v8z7qzr73vyyd40qhnhz98yk9aq3wj76wr3m5njwkezqp2qzed6cgy40q3ax3yxddm29ygcqez2pvl | addr1qy9yrva9vnxjd09vvnr7v8z7qzr73vyyd40qhnhz98yk9aq3wj76wr3m5njwkezqp2qzed6cgy40q3ax3yxddm29ygcqez2pvl |   280113718 | 106066808|
+| addr1qxlhz4d0vcmut378mu56zgzng4wm8xj4dqjahdvxn6tzk3mj58v9gz4wrerzqvm0v5xvcygl0unpe2ndw4yuy679nz3qv7hv3f | addr1wxn9efv2f6w82hagxqtn62ju4m293tqvw0uhmdl64ch8uwc0h43gt                                              |    22265944 | 109537649|
+| addr1qxlhz4d0vcmut378mu56zgzng4wm8xj4dqjahdvxn6tzk3mj58v9gz4wrerzqvm0v5xvcygl0unpe2ndw4yuy679nz3qv7hv3f | addr1qxlhz4d0vcmut378mu56zgzng4wm8xj4dqjahdvxn6tzk3mj58v9gz4wrerzqvm0v5xvcygl0unpe2ndw4yuy679nz3qv7hv3f |     1150770 | 109537649|
+| addr1qxlhz4d0vcmut378mu56zgzng4wm8xj4dqjahdvxn6tzk3mj58v9gz4wrerzqvm0v5xvcygl0unpe2ndw4yuy679nz3qv7hv3f | addr1qyylzh9428hzu2rlsuv50hntjm8qw6s3may0a2fcsd8demmj58v9gz4wrerzqvm0v5xvcygl0unpe2ndw4yuy679nz3q9j4umr | 13884036547 | 109537649|
+| addr1q8k8fauns9syu05xc0n0rtaa6sj2cl6kwlpcx2jvvjdz4j5cell99ey8lzj65ne7m8pvvr2cuswkkflal02agavlwxdsmq45n8 | addr1qx3jt2ddwkcwccku7e7nfmmmd0d5sguy3cdjnv6m7zf03p2hf6gsq5ye5wgu25kyrwlggl523ff6qtf3u2skntuwryeqj5f5xp |     1232660 | 109878818|
+| addr1q8k8fauns9syu05xc0n0rtaa6sj2cl6kwlpcx2jvvjdz4j5cell99ey8lzj65ne7m8pvvr2cuswkkflal02agavlwxdsmq45n8 | addr1q8m97lg7rrnk6cl6rh2lzpw5dfyx5vf98f4kpek547yg6lvcell99ey8lzj65ne7m8pvvr2cuswkkflal02agavlwxdsxwfjuy |    50801581 | 109878818|
+| addr1q84fpuye5x98qh423fc5sg5nwx6zg3qrll6d9kr5kz47g249e23557mnyl44zshd4k6hx5plt867c9lt5ehcz85rlaxsqxtsrd | addr1q84fpuye5x98qh423fc5sg5nwx6zg3qrll6d9kr5kz47g249e23557mnyl44zshd4k6hx5plt867c9lt5ehcz85rlaxsqxtsrd |     1379280 | 103705810|
+| addr1qy6pk28tku9un33mr9frhzswl3smh5mq574tvvh9fla4uqlk7clayad5pu8ync9q6kngp5y5mwmul7zwzmzp48lnvm0q0xpe50 | addr1q8hw32qj56pz9k4pmrzqvlvm26zdj6udxltyxh4nq45sgrj04y59cvptj4a0qvemzz52n36jl33fwv4sk4vj60qu5wesldascj |     1344798 | 104998886|
+| addr1qy6pk28tku9un33mr9frhzswl3smh5mq574tvvh9fla4uqlk7clayad5pu8ync9q6kngp5y5mwmul7zwzmzp48lnvm0q0xpe50 | addr1qx7zqkf4aapmdh6js3xe3c6k2mnfpfj69crf2rpg2du26s0k7clayad5pu8ync9q6kngp5y5mwmul7zwzmzp48lnvm0q7qzata |   103120160 | 104998886|
+| addr1qy6pk28tku9un33mr9frhzswl3smh5mq574tvvh9fla4uqlk7clayad5pu8ync9q6kngp5y5mwmul7zwzmzp48lnvm0q0xpe50 | addr1qx7zqkf4aapmdh6js3xe3c6k2mnfpfj69crf2rpg2du26s0k7clayad5pu8ync9q6kngp5y5mwmul7zwzmzp48lnvm0q7qzata |     2824075 | 104998886|
+
+### How to derive the staking address from the payment address?
+
+Compute the stake key for each row. Cardano uses bech32. Install bech32 instead and decode/encode the address.
+
+Download the bech32 tool as part of cardano-wallet from github
+
+```bash
+wget https://github.com/input-output-hk/cardano-wallet/releases/download/v2022-12-14/cardano-wallet-v2022-12-14-linux64.tar.gz
+tar -xf cardano-wallet-v2022-12-14-linux64.tar.gz
+cd cardano-wallet-v2022-12-14-linux64
+./bech32
+```
+
+Let’s say you have address
+```bash
+$ set addr addr1q9f2prypgqkrmr5497d8ujl4s4qu9hx0w6kruspdkjyudc2xjgcagrdn0jxnf47yd96p7zdpfzny30l2jh5u5vwurxasjwukdr
+$ echo "e1$(echo $addr | ./bech32 | tail -c 57)" | ./bech32 stake
+stake1u9rfyvw5pkeherf56lzxjaqlpxs53fjghl4ft6w2x8wpnwchfeam3
 ```
