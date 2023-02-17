@@ -1,10 +1,8 @@
 class Node:
     def __init__(self, name):
-        self.name = name
+        self.name = name # purely for debugging
         self.children = []
         self.parents = []
-        self.auth = 1.0
-        self.hub = 1.0
         self.pagerank = 1.0
 
     def link_child(self, new_child):
@@ -18,12 +16,6 @@ class Node:
             if parent.name == new_parent.name:
                 return None
         self.parents.append(new_parent)
-
-    def update_auth(self):
-        self.auth = sum(node.hub for node in self.parents)
-
-    def update_hub(self):
-        self.hub = sum(node.auth for node in self.children)
 
     def update_pagerank(self, d, n):
         in_neighbors = self.parents
