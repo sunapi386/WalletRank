@@ -389,3 +389,24 @@ As an epic roadmap to building out scalable infrastructure, we likely need to in
 - Shop to compare and select service provider for compute / database
 - Automate (devops) scaling out infrastructure: images, docker containers, infrastructure-as-code, etc.
 - Modify backend/frontend to use the new data sources
+
+
+## Todo plan
+
+1. Create or use/modify existing graph library, such as [networkx](https://networkx.org/) for backend storage.
+   What is needed is a NetworkX-like interface for large persistent graphs stored inside DBMS, enabling to upscale from
+   Gigabyte graphs to even Terabyte-Petabyte graphs (that won't fit into RAM), without changing code. Similar to
+   (NetworkXum)[https://github.com/unum-cloud/NetworkXum]. This graph system can be used for other transaction
+   analysis. For Cardano, there will be at a minimum over 11M unique entries, approximately 2GB of stake addresses,
+   and approx 115M transactions. This part may take 2 days developer time.
+   - Setup any infrastructure, such as MongoDB, as the backend.
+2. Add feature to the graph library, for PageRank. This part may take 1-2 days developer time.
+    - Per-iteration of updating and normalizing weights, keeping track of weights only.
+    - Graph meta function for running through n-iterations.
+3. Construct a complete material view (not just the last 1M entries). Likely will take 115 x 16 min ~= 31 hrs.
+4. Transform the payment address to a stake address. Assume taking 5s to run 100 entries, this will take
+   - 115M / 100 * 5s / 60s / 60s ~= 160 hrs (approx 6.7 days - but this could be parallelized)
+5. Construct the graph from stake address. Unknown how long to run. Assuming speed to process 1M tx per second:
+     -  115M rows would take 115s to process.
+6. Iterate 500 times over 2M stake addresses. Assuming 2s per iteration of 2M stake address:
+   - 2 * 500 times / 60s / 24h ~= 68 mins

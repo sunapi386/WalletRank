@@ -1,27 +1,28 @@
-from src.utils.utils import init_graph
+import os
+
+import pandas as pd
+
+from src.Graph import build_graph
 
 
-def PageRank_one_iter(graph, d):
-    node_list = graph.nodes
-    for node in node_list:
-        node.update_pagerank(d, len(graph.nodes))
-    graph.normalize_pagerank()
-    # print(graph.get_pagerank_list())
-    # print()
+class PageRankGraph:
+    def __init__(self, file_path, damping_factor, iterations):
+        self.file_path = file_path
+        self.graph = build_graph(file_path)
+        self.iterations = iterations
+        self.damping_factor = damping_factor
+        self.iterate_PageRank(damping_factor, iterations)
 
+    def iterate_PageRank(self, d, iteration=100):
+        for i in range(iteration):
+            self.graph.pageRank_one_iter(d)
 
-def PageRank(graph, d, iteration=100):
-    for i in range(iteration):
-        PageRank_one_iter(graph, d)
-
-
-
-if __name__ == '__main__':
-
-    iteration = 100
-    damping_factor = 0.15
-
-    graph = init_graph('./dataset/graph_4.txt')
-
-    PageRank(iteration, graph, damping_factor)
-    print(graph.get_pagerank_list())
+    def output_PageRank_csv(self):
+        df = pd.DataFrame(self.graph.get_pagerank_list())
+        result_dir = 'out'
+        if not os.path.exists(result_dir):
+            os.makedirs(result_dir)
+        filename = self.file_path.split('/')[-1].split('.')[0]
+        df.columns = ["stake_address", "score"]
+        df.sort_values(by="score")
+        df.to_csv(f"{result_dir}/{filename}.csv", index=False)
