@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+
+set -e
+
+function usage() {
+  echo 'psql2csv: Run a query in psql and output the result as CSV.'
+  echo
+  echo 'Usage:'
+  echo '  psql2csv [OPTIONS] < QUERY'
+  echo '  psql2csv [OPTIONS] QUERY'
+  echo
+  echo 'OPTIONS:'
+  echo '  The query is assumed to be the contents of STDIN, if present, or the last argument.'
+  echo '  All other arguments are forwarded to psql except for these:'
+  echo
+  echo '  -?, --help                 show this help, then exit'
+  echo '  --delimiter=DELIMITER      set the field delimiter (default: ,)'
+  echo '  --quote=QUOTE              set the quote delimiter (default: ")'
+  echo '  --escape=ESCAPE            set the escape character (default: QUOTE)'
+  echo '  --null=NULL                set the string representing NULL; printed without quotes (default: empty string)'
+  echo '  --force-quote=FORCE_QUOTE  set the columns to be force quoted; comma separated list of columns or * for all (default: none)'
+  echo '  --encoding=ENCODING        set the output encoding; Excel likes latin1 (default: UTF8)'
+  echo '  --no-header                do not output a header'
+  echo '  --timezone=TIMEZONE        set the timezone config before running the query'
+  echo '  --search-path=SEARCH_PATH  set the search_path config before running the query'
+  echo '  --dry-run                  print the COPY statement that would be run without actually running it'
+  echo
+  echo 'Example usage:'
+  echo
+  echo '  $ psql2csv dbname "select * from table" > data.csv'
+  echo
+  echo '  $ psql2csv dbname < query.sql > data.csv'
+  echo
+  echo '  $ psql2csv --no-header --delimiter=$'"'\\t'"' --encoding=latin1 dbname <<sql'
+  echo '  > SELECT *'
+  echo '  > FROM some_table'
+  echo '  > WHERE some_condition'
+  echo '  > LIMIT 10'
+  echo '  > sql'
+  echo
+  echo 'Further Help:'
+  echo
+  echo '  PostgreSQL COPY documentation: https://www.postgresql.org/docs/current/static/sql-copy.html'
+  echo
+  echo 'Author: Philipe Fatio <me@phili.pe>, https://phili.pe/, @fphilipe'
+}
+
+# Escapes single quotes, necessary in SQL strings.
+function escape() {
+  echo "${1//\'/''}"
+}
+
+DRY_RUN=false
+HEADER=true
+ENCODING=UTF8
+PSQL_ARGS=()
+
+while [ $# -gt 0 ]
+do
+  case "$1" in
+    --help|-\?)      usage; exit;;
+    --dry-run)       DRY_RUN=true;                     shift;;
+    --no-header)     HEADER=false;                     shift;;
+    --delimiter)     DELIMITER="$2";                   shift 2;;
+    --delimiter=*)   DELIMITER="${1#*=}";              shift;;
+    --null)          NULL="$2";                        shift 2;;
+    --null=*)        NULL="${1#*=}";                   shift;;
+    --quote)         QUOTE="$2";      ESCAPE="$QUOTE"; shift 2;;
+    --quote=*)       QUOTE="${1#*=}"; ESCAPE="$QUOTE"; shift;;
+    --escape)        ESCAPE="$2";                      shift 2;;
+    --escape=*)      ESCAPE="${1#*=}";                 shift;;
+    --force-quote)   FORCE_QUOTE="$2";                 shift 2;;
+    --force-quote=*) FORCE_QUOTE="${1#*=}";            shift;;
+    --encoding)      ENCODING="$2";                    shift 2;;
+    --encoding=*)    ENCODING="${1#*=}";               shift;;
+    --timezone)      TIMEZONE="$2";                    shift 2;;
+    --timezone=*)    TIMEZONE="${1#*=}";               shift;;
+    --search-path)   SEARCH_PATH="$2";                 shift 2;;
+    --search-path=*) SEARCH_PATH="${1#*=}";            shift;;
+    *)               PSQL_ARGS+=("$1");                shift;;
+  esac
+done
+
+if ! [ -t 0 ]; then
+  # STDIN is open, thus read query from STDIN.
+  QUERY=$(cat)
+fi
+if [ -z "$QUERY" ]; then
+  # STDIN was not open or was empty, thus the query is the last argument.
+  [ ${#PSQL_ARGS} -eq 0 ] && usage && exit 1
+  QUERY=${PSQL_ARGS[@]: -1}
+  unset PSQL_ARGS[${#PSQL_ARGS[@]}-1]
+fi
+
+OPTIONS="FORMAT csv, ENCODING '$(escape "$ENCODING")'"
+# Only specify the HEADER option when the header should be printed.
+if [ "$HEADER" = true ]; then
+  OPTIONS="$OPTIONS, HEADER $HEADER"
+fi
+# Only specify the DELIMITER option when it's set and not the default.
+if ! [ -z "$DELIMITER" ] && [ "$DELIMITER" != "," ]; then
+  OPTIONS="$OPTIONS, DELIMITER '$(escape "$DELIMITER")'"
+fi
+# Only specify the NULL option when it's set and not the default (nothing).
+if ! [ -z "$NULL" ]; then
+  OPTIONS="$OPTIONS, NULL '$(escape "$NULL")'"
+fi
+# Only specify the QUOTE option when it's set and not the default.
+if ! [ -z "$QUOTE" ] && [ "$QUOTE" != '"' ]; then
+  OPTIONS="$OPTIONS, QUOTE '$(escape "$QUOTE")'"
+fi
+# Only specify the QUOTE option when it's set and not the same as ESCAPE.
+if ! [ -z "$ESCAPE" ] && [ "$ESCAPE" != "$QUOTE" ]; then
+  OPTIONS="$OPTIONS, ESCAPE '$(escape "$ESCAPE")'"
+fi
+# Only specify the FORCE_QUOTE option when it's set.
+if ! [ -z "$FORCE_QUOTE" ]; then
+  if [ "$FORCE_QUOTE" != "*" ]; then
+    FORCE_QUOTE="($FORCE_QUOTE)"
+  fi
+  OPTIONS="$OPTIONS, FORCE_QUOTE $FORCE_QUOTE"
+fi
+
+# Replace trailing semicolons. sed needs at least two lines with the given
+# arguments, otherwise the query ends up empty.
+QUERY="$((echo "$QUERY"; echo) | sed -E -e ':a' -e 'N' -e '$!ba' -e '$s/([[:space:]]*;+[[:space:]]*)+$//')"
+COMMAND="COPY ($QUERY) TO STDOUT WITH ($OPTIONS)"
+
+# Only set the search_path parameter when it's specified.
+if ! [ -z "$SEARCH_PATH" ]; then
+  COMMAND="SET search_path TO $SEARCH_PATH;"$'\n'"$COMMAND"
+fi
+
+# Only set the timezone parameter when it's specified.
+if ! [ -z "$TIMEZONE" ]; then
+  COMMAND=$"SET timezone TO '$TIMEZONE';"$'\n'"$COMMAND"
+fi
+
+if [ "$DRY_RUN" = true ]; then
+  echo "$COMMAND"
+else
+  psql --no-psqlrc --quiet ${PSQL_ARGS[@]} <<< "$COMMAND"
+fi

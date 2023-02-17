@@ -30,6 +30,9 @@ PageRank is simpler than what WalletRank could & should model in hopes of fraud 
   service fee and returning the remaining funds to each depositor.
   https://blog.chainalysis.com/reports/tornado-cash-sanctions-challenges/
 
+In creating a better fraud detection model, each of these can be considered a feature task to solve, keeping track
+of them in Jira or a similar issue tracking product.
+
 # Cardano Ecosystem
 Cardano uses the unspent transaction output (UTXO) model, refers to a transaction output that can be
 used as input where each blockchain transaction starts and finishes.
@@ -253,3 +256,136 @@ $ set addr addr1q9f2prypgqkrmr5497d8ujl4s4qu9hx0w6kruspdkjyudc2xjgcagrdn0jxnf47y
 $ echo "e1$(echo $addr | ./bech32 | tail -c 57)" | ./bech32 stake
 stake1u9rfyvw5pkeherf56lzxjaqlpxs53fjghl4ft6w2x8wpnwchfeam3
 ```
+
+### Python wrapper `resolve_addr2stake`
+Since these are command line tools, it makes sense to have a python wrapper.
+
+In [resolve.py](src%2Fresolve.py):
+
+```python
+def resolve_addr2stake(address: str) -> str:
+    """
+     same as 'echo "e1$(echo {address} | ./bech32 | tail -c 57)" |./bech32 stake'
+     It may be quicker to cache the address, result in a lookup table
+    :param address: wallet address, such as
+    addr1q9f2prypgqkrmr5497d8ujl4s4qu9hx0w6kruspdkjyudc2xjgcagrdn0jxnf47yd96p7zdpfzny30l2jh5u5vwurxasjwukdr
+    :return: stake key, such as
+    stake1g6frr4qdkd7g6dxhc35hg8cf59y2vj9la227nj33msvmkczsmnx
+    """
+    p1 = subprocess.Popen(["echo", address], stdout=subprocess.PIPE)
+    p2 = subprocess.run(['./cardano-wallet/bech32'], stdin=p1.stdout, capture_output=True)
+    s = p2.stdout.strip().decode('utf-8')
+    p3 = subprocess.Popen(["echo", s[-56:]], stdout=subprocess.PIPE)
+    p4 = subprocess.run(['./cardano-wallet/bech32', 'stake'], stdin=p3.stdout, capture_output=True)
+    return p4.stdout.strip().decode('utf-8')
+```
+
+## Test the pipeline with a small subset of the data from `sender_reciver_amount_id` material view.
+
+Dump 100 rows of the table as csv using `psql2csv`
+
+```bash
+./psql2csv postgres://cardano:qwe123@mini.ds:5432/dbsync "select * from sender_reciver_amount_id limit 100" > sender_reciver_amount_id-100.csv
+```
+
+Load this into pandas (or dask, if there are many large csvs).
+
+
+In `sender_reciver_amount_id-100.csv` there are 100 rows. We can easily load to a df and use `apply`.
+
+```python
+df = pd.read_csv('./sender_reciver_amount_id-100.csv')
+df['src'] = df.sender.apply(resolve_addr2stake)
+df['dst'] = df.receiver.apply(resolve_addr2stake)
+```
+
+This takes a long time
+```
+In [76]: %time df['dst'] = df.receiver.apply(resolve_addr2stake)
+CPU times: user 210 ms, sys: 1.65 s, total: 1.86 s
+Wall time: 5.61 s
+```
+
+Result
+
+```
+                                               sender                                           receiver       amount      tx_id                                                src                                                dst
+0   addr1qy9yrva9vnxjd09vvnr7v8z7qzr73vyyd40qhnhz9...  addr1qy9yrva9vnxjd09vvnr7v8z7qzr73vyyd40qhnhz9...    280113718  106066808  stake1z96tmfcw8wjwf6mygq9gqt9htpqj4uz856yse4hd...  stake1z96tmfcw8wjwf6mygq9gqt9htpqj4uz856yse4hd...
+1   addr1qxlhz4d0vcmut378mu56zgzng4wm8xj4dqjahdvxn...  addr1wxn9efv2f6w82hagxqtn62ju4m293tqvw0uhmdl64...     22265944  109537649  stake1w2sas4q24c0yvgpndajsenq3raljv892d465nsnt...  stake15ew2tzjwn364l2pszu7j5h9w63v2crrnl97m074w...
+2   addr1qxlhz4d0vcmut378mu56zgzng4wm8xj4dqjahdvxn...  addr1qxlhz4d0vcmut378mu56zgzng4wm8xj4dqjahdvxn...      1150770  109537649  stake1w2sas4q24c0yvgpndajsenq3raljv892d465nsnt...  stake1w2sas4q24c0yvgpndajsenq3raljv892d465nsnt...
+3   addr1qxlhz4d0vcmut378mu56zgzng4wm8xj4dqjahdvxn...  addr1qyylzh9428hzu2rlsuv50hntjm8qw6s3may0a2fcs...  13884036547  109537649  stake1w2sas4q24c0yvgpndajsenq3raljv892d465nsnt...  stake1w2sas4q24c0yvgpndajsenq3raljv892d465nsnt...
+4   addr1q8k8fauns9syu05xc0n0rtaa6sj2cl6kwlpcx2jvv...  addr1qx3jt2ddwkcwccku7e7nfmmmd0d5sguy3cdjnv6m7...      1232660  109878818  stake1nr8lu5hyslu2t2j08mvu93sdtrjp66e8lhaat4r4...  stake12a8fzqzsnx3er32jcsdmapr732998gpdx832z6d0...
+..                                                ...                                                ...          ...        ...                                                ...                                                ...
+95  addr1q85drlt7c7fkxde5rpx5vdrgpnpdnt8nnza5a68dw...  addr1q85drlt7c7fkxde5rpx5vdrgpnpdnt8nnza5a68dw...    138821262  104348981  stake1f93gr5yqz29nqlsgpq3fzpfmkkttmvkcuys8tkyx...  stake1f93gr5yqz29nqlsgpq3fzpfmkkttmvkcuys8tkyx...
+96  addr1q85drlt7c7fkxde5rpx5vdrgpnpdnt8nnza5a68dw...  addr1wxn9efv2f6w82hagxqtn62ju4m293tqvw0uhmdl64...      4068744  104348981  stake1f93gr5yqz29nqlsgpq3fzpfmkkttmvkcuys8tkyx...  stake15ew2tzjwn364l2pszu7j5h9w63v2crrnl97m074w...
+97  addr1qylz2azpzq47j84xuv00jlnsh4gkzpl370ne65nsh...  addr1v8vqt24ee97ks09lp9tfupen3p09knqqw2ryp2c5p...     40000000  106169755  stake1quewckyn8s26taneauq30l6l4s7cz2kgrhks6eaa...  stake1mqz64wwf045re0cf260qwvugted5cqrjseq2k9q0...
+98  addr1qylz2azpzq47j84xuv00jlnsh4gkzpl370ne65nsh...  addr1qxq74c8dr75m2j0ejmewrkpztd2kvj63kdujren7l...     10094086  106169755  stake1quewckyn8s26taneauq30l6l4s7cz2kgrhks6eaa...  stake1quewckyn8s26taneauq30l6l4s7cz2kgrhks6eaa...
+99  addr1q8x8uxfmj2v7xcyp92vcsmfdnxs9slsvekc6nrdqn...  addr1vx69slry2j9sevq3jstfws2wm8q3zeqra59vm0mc4...      5000000  107627554  stake1jjp537auwgldqhzjnyc3xa9t7exaavw5fuzhdczz...  stake1k3v8cez53vxtqyv5z6t5znkecygkgqldptxm779v...
+
+[100 rows x 6 columns]
+```
+
+For more details, see [src_dst_amount_id-100.csv](data/src_dst_amount_id-100.csv).
+
+**Note:** there are numerous rows that have duplicate src & dst -- this is the result of UXTOs model approach.
+
+### Pipeline notes and potential Jira issues
+
+In the interest of time, these issue will be beyond the scope; but can be tracked as Jira issues.
+
+1. CSVs. This is to test the infrastructure pipeline prior to setting up database as our backend.
+   Or, to run on a one-time basis. Anything on a large scale is in-appropriate to store in csv files, so this is only
+   done for ease of testing access. Also see the [section on scaling up](#scaling-up).
+2. The function `resolve_addr2stake` runs as subprocess - this takes a long time due to the 4 sys-calls. It isn't what
+   should be used here. In processing 100 rows, it took 5.61 s and there was a lot of overhead.
+3. Looking at `src` and `dst` columns, there are many duplicate stake keys, because of the UXTOs model. Rows where
+   `src == dst` should be ignored, because it does not represent a transaction where "Alice" sends amount to "Bob".
+   Furthermore, this row should be dropped when processing the transaction, because less data means less scaling.
+4. Multiple rows exist for the same `tx_id`. A single cardano transaction may contain multiple inputs per address
+   from multiple wallets, so long as the transaction contains a signature for every unique address from which a UTXO
+   is being consumed. Although the Cardano protocol supports sending to multiple wallet address at once, this is
+   usually not the case -- at least not from a visual inspection of the 100 rows. Usually the stake address is
+   one-to-one. So it may be of interest to look into `tx_id`s for many-to-many, many-to-one, one-to-many transactions.
+5. Following up on many-to-many, many-to-one, one-to-many transactions: these may be more heavily used by smart
+   contracts, or web2 apps such as Splitwise, Venmo, Zelle, etc, when if and when they support Cardano to split bills.
+
+
+## Scaling up
+
+The existing data can be batch-processed. It is processing the (near) real-time data that would be of interest. What
+would be the infrastructure setup needed to do that?
+
+1. The speed to process a transaction needs to be quicker than the speed the transactions, ideally more
+   than the theoretical maximum.
+2. For Ethereum Proof-of-Stake can process 20,000 to 100,000 TPS.
+3. For Cardano it is presently at 250 TPS. However, in the future upgrade,
+ [Hydra](https://iohk.io/en/blog/posts/2020/03/26/enter-the-hydra-scaling-distributed-ledgers-the-evidence-based-way/)
+, it is possible to achieve roughly 1,000 TPS.
+
+It's a lot, but thankfully, blockchains are slower than traditional sharded databases. But, can we just reach any TPS
+number that we want?
+
+### Factors in scaling up
+
+TPS as a metric to compare systems is an oversimplification. Without further context, a TPS number is close to
+meaningless. In order to properly interpret it, and make comparisons, you need to know
+- how quickly the transaction analysis can be done
+- how large and complicated the transactions are (which has an impact on transaction validation times,
+message propagation time, requirements on the local storage system, and composition of the head participants);
+- what kind of hardware and network connections exist in those locations;
+- size of the cluster (which influences the communication overhead);
+- its geographic distribution (which determines how much time it takes for information to transit through the system);
+- how the quality of service (speed of transaction / analysis to providing data to end users) is impacted by a high rate of
+transactions;
+
+### Epic Roadmap
+
+As an epic roadmap to building out scalable infrastructure, we likely need to investigate the following
+["Jira Epics"](https://support.atlassian.com/jira-software-cloud/docs/what-is-an-epic/).
+
+- Determine what blockchain, and speed of transactions we need to ingress
+- Determine the type of analytics and its "online" processing speed
+- Approximate compute and database needs; caching, real time changelist data streaming, etc.
+- Shop to compare and select service provider for compute / database
+- Automate (devops) scaling out infrastructure: images, docker containers, infrastructure-as-code, etc.
+- Modify backend/frontend to use the new data sources
