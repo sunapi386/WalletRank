@@ -329,6 +329,15 @@ For more details, see [src_dst_amount_id-100.csv](data/src_dst_amount_id-100.csv
 
 **Note:** there are numerous rows that have duplicate src & dst -- this is the result of UXTOs model approach.
 
+## To run
+
+```bash
+python3 main.py -f data/simple.csv
+python3 main.py -f data/src_dst_amount_id-100.csv
+```
+
+# Future Work
+
 ### Pipeline notes and potential Jira issues
 
 In the interest of time, these issue will be beyond the scope; but can be tracked as Jira issues.

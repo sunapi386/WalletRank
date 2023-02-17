@@ -25,4 +25,6 @@ class PageRankGraph:
         filename = self.file_path.split('/')[-1].split('.')[0]
         df.columns = ["stake_address", "score"]
         df.sort_values(by="score")
-        df.to_csv(f"{result_dir}/{filename}.csv", index=False)
+        outfile = f"{result_dir}/{filename}.csv"
+        df.to_csv(outfile, index=False)
+        print(f"Wrote to {outfile}")
