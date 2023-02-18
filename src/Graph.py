@@ -44,9 +44,29 @@ class Graph:
         self.normalize_pagerank()
 
 
+def dask_parse_columns(csv_filename):
+    import dask.dataframe as dd
+
+
+    out_filename = f"{csv_filename}_parsed.csv"
+    df = dd.read_csv(csv_filename)
+
+    print('extracting unique address map to cache...')
+
+
+    print(f'parsing to {out_filename} for src: time...')
+    df['src'] = df.sender.apply(resolve_addr2stake)
+    print(f'parsing to {out_filename} for dst: time...')
+    df['dst'] = df.receiver.apply(resolve_addr2stake)
+
+
 def build_graph(filename):
     graph = Graph()
     df = pd.read_csv(filename)
+
+    if 'src' not in df.columns:
+        print(f'CSV {filename}: src column not found -- will need to convert address. This may take some time...')
+        dask_parse_columns(filename)
 
     for row in df[['src', 'dst']].iterrows():
         idx, (src, dst) = row

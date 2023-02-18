@@ -336,6 +336,25 @@ Result
 [100 rows x 6 columns]
 ```
 
+Result can be written to a csv.
+
+| stake_address                                             | score                 |
+| --------------------------------------------------------- | --------------------- |
+| stake1z96tmfcw8wjwf6mygq9gqt9htpqj4uz856yse4hdg53rqwgjrlv | 0.16448162326060747   |
+| stake1w2sas4q24c0yvgpndajsenq3raljv892d465nsntckv2yknvl67 | 0.004349470567515659  |
+| stake15ew2tzjwn364l2pszu7j5h9w63v2crrnl97m074w9elrk57mwc8 | 0.007277932992728645  |
+| stake1nr8lu5hyslu2t2j08mvu93sdtrjp66e8lhaat4r4nacek8wcejx | 0.004349470567515659  |
+| stake12a8fzqzsnx3er32jcsdmapr732998gpdx832z6d03cvnym78r3r | 0.004052399355944628  |
+| stake15h92xjnmwvn7k52zakkm2u6s8avltmqhawnxlqg7s0l56xsca58 | 0.16448162326060747   |
+| stake17mmrl5n4ks8suj0q5r26dqxsjndm0nlcfctvgx5l7dnduhfhl7k | 0.004349470567515659  |
+| stake1f75jshps9w2h4upn8vg232w82t7x99ejkz64jtfurj3mxp9mnat | 0.004052399355944628  |
+| stake1u256rdampf3vvjw9hz2kr8t4rwmg2vnzuhpzg99aru6sczvs6fh | 0.004349470567515659  |
+| stake156q8n3tpv8lxpaeqqc7dhca0vzzh3ps4u87g7zwmsdxccmegzjg | 0.004052399355944628  |
+| stake1jer03kr7eyz4y7ynaucjg4yuga20cvx6j48qhhy4kkuc769lyae | 0.003283811798769304  |
+| stake1h0vkjfjzjuk4u553ruc0ent3rgyxk8ca7ls374llwh30vuyv943 | 0.0031342877077351087 |
+| stake1reu24e7fpnpk6cj00vamdkrt2f5kmjzwfy8ng0463yq97e3s267 | 0.27218574991355154   |
+
+
 For more details, see [src_dst_amount_id-100.csv](data/src_dst_amount_id-100.csv).
 
 **Note:** there are numerous rows that have duplicate src & dst -- this is the result of UXTOs model approach.
