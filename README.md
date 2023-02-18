@@ -237,6 +237,17 @@ This table is 33GB. It will not fit in memory.
 | addr1qy6pk28tku9un33mr9frhzswl3smh5mq574tvvh9fla4uqlk7clayad5pu8ync9q6kngp5y5mwmul7zwzmzp48lnvm0q0xpe50 | addr1qx7zqkf4aapmdh6js3xe3c6k2mnfpfj69crf2rpg2du26s0k7clayad5pu8ync9q6kngp5y5mwmul7zwzmzp48lnvm0q7qzata |   103120160 | 104998886|
 | addr1qy6pk28tku9un33mr9frhzswl3smh5mq574tvvh9fla4uqlk7clayad5pu8ync9q6kngp5y5mwmul7zwzmzp48lnvm0q0xpe50 | addr1qx7zqkf4aapmdh6js3xe3c6k2mnfpfj69crf2rpg2du26s0k7clayad5pu8ync9q6kngp5y5mwmul7zwzmzp48lnvm0q7qzata |     2824075 | 104998886|
 
+This data can be dumped from the material view table as csv
+```
+dbsync=# COPY (select * from sender_reciver_amount_id) TO '/tmp/sender_reciver_amount_id.csv'  WITH DELIMITER ',' CSV HEADER;
+COPY 169393154
+Time: 214799.788 ms (03:34.800)
+```
+
+Size is rather large at 29G.
+```
+-rw-r--r-- 1 postgres postgres 29G Feb 17 16:15 sender_reciver_amount_id.csv
+```
 ### How to derive the staking address from the payment address?
 
 Compute the stake key for each row. Cardano uses bech32. Install bech32 instead and decode/encode the address.
@@ -335,6 +346,9 @@ For more details, see [src_dst_amount_id-100.csv](data/src_dst_amount_id-100.csv
 python3 main.py -f data/simple.csv
 python3 main.py -f data/src_dst_amount_id-100.csv
 ```
+The result looks like [src_dst_amount_id-100.csv](out%2Fsrc_dst_amount_id-100.csv).
+
+
 
 # Future Work
 
@@ -384,8 +398,8 @@ message propagation time, requirements on the local storage system, and composit
 - what kind of hardware and network connections exist in those locations;
 - size of the cluster (which influences the communication overhead);
 - its geographic distribution (which determines how much time it takes for information to transit through the system);
-- how the quality of service (speed of transaction / analysis to providing data to end users) is impacted by a high rate of
-transactions;
+- how the quality of service (speed of transaction / analysis to providing data to end users) is impacted by a high
+  rate of transactions;
 
 ### Epic Roadmap
 
