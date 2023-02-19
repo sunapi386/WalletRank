@@ -5,7 +5,6 @@ import subprocess
 from typing import Optional
 import bech32
 
-
 def resolve_addr2stake(address: str) -> Optional[str]:
     hrp, by = bech32.bech32_decode(address)
     if hrp != 'addr':

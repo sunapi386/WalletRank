@@ -316,16 +316,22 @@ Load this into pandas (or dask, if there are many large csvs).
 In `sender_reciver_amount_id-100.csv` there are 100 rows. We can easily load to a df and use `apply`.
 
 ```python
-df = pd.read_csv('./sender_reciver_amount_id-100.csv')
+df = pd.read_csv('./data/sender_reciver_amount_id-100.csv')
 df['src'] = df.sender.apply(resolve_addr2stake)
 df['dst'] = df.receiver.apply(resolve_addr2stake)
 ```
 
-This takes a long time
+This takes a long time.
 ```
-In [76]: %time df['dst'] = df.receiver.apply(resolve_addr2stake)
+In [76]: %time df['dst'] = df.receiver.apply(resolve_addr2stake_cli)
 CPU times: user 210 ms, sys: 1.65 s, total: 1.86 s
 Wall time: 5.61 s
+```
+With doing it in code, it is 22.6 ms, approx 300x speed up.
+```
+In [13]: %time df['dst'] = df.receiver.apply(src.resolve.resolve_addr2stake)
+CPU times: user 22 ms, sys: 1.29 ms, total: 23.3 ms
+Wall time: 22.6 ms
 ```
 
 Result
