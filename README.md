@@ -29,6 +29,10 @@ PageRank is simpler than what WalletRank could & should model in hopes of fraud 
   deposited by many users together, shuffling them in a seemingly random fashion, and then subtracting a small
   service fee and returning the remaining funds to each depositor.
   https://blog.chainalysis.com/reports/tornado-cash-sanctions-challenges/
+- PageRank doesn't look at the graph from a [connected component](https://en.wikipedia.org/wiki/Component_(graph_theory)) (or connected subgraph) to detect the wallets most
+  likely to be fraud. Looking at transactions from a graph model enables analytics that leverages on math advances
+  in graph theories. A graph database may help in such analysis, such as
+  [TigerGraph](https://www.tigergraph.com/solutions/fraud-detection/).
 
 In creating a better fraud detection model, each of these can be considered a feature task to solve, keeping track
 of them in Jira or a similar issue tracking product.
@@ -250,46 +254,53 @@ Size is rather large at 29G.
 ```
 ### How to derive the staking address from the payment address?
 
-Compute the stake key for each row. Cardano uses bech32. Install bech32 instead and decode/encode the address.
+By convention, Shelley and stake addresses are encoded using Bech32, with the exception that Cardano does not impose a length limit on the sequence of characters. The human-readable prefixes are defined in CIP-0005; the most common prefix is addr, representing an address on mainnet. Bech32 is the preferred encoding, as its built-in error detection may protect users against accidental misspellings or truncations.
 
-Download the bech32 tool as part of cardano-wallet from github
+Again by convention, Byron addresses are encoded in Base58.
 
-```bash
-wget https://github.com/input-output-hk/cardano-wallet/releases/download/v2022-12-14/cardano-wallet-v2022-12-14-linux64.tar.gz
-tar -xf cardano-wallet-v2022-12-14-linux64.tar.gz
-cd cardano-wallet-v2022-12-14-linux64
-./bech32
-```
+Historically, Byron addresses were introduced before the design of Bech32, which solves various issues of the Base58 encoding format (see Bech32's motivation for more detail). Byron addresses were however kept as Base58 to easily distinguish them from new addresses introduced in Shelley, massively making use of Bech32 for encoding small binary objects.
 
-Let’s say you have address
-```bash
-$ set addr addr1q9f2prypgqkrmr5497d8ujl4s4qu9hx0w6kruspdkjyudc2xjgcagrdn0jxnf47yd96p7zdpfzny30l2jh5u5vwurxasjwukdr
-$ echo "e1$(echo $addr | ./bech32 | tail -c 57)" | ./bech32 stake
-stake1u9rfyvw5pkeherf56lzxjaqlpxs53fjghl4ft6w2x8wpnwchfeam3
-```
+Cave: In principle, it is possible for a Shelley address to be encoded in Base58 and a Byron address to be encoded in Bech32 (without length limit). However, implementations are encouraged to reject addresses that were encoded against convention, as this helps with the goal that lay users only encounter a single, canonical version of every address.
 
-### Python wrapper `resolve_addr2stake`
-Since these are command line tools, it makes sense to have a python wrapper.
+Examples of different addresses encoded in different eras:
 
-In [resolve.py](src%2Fresolve.py):
+| Address Type | Encoding | Example                                                                                                            |
+|:-------------|:---------|:-------------------------------------------------------------------------------------------------------------------|
+| Byron        | Base58   | 37btjrVyb4KDXBNC4haBVPCrro8AQPHwvCMp3RFhhSVWwfFmZ6wwzSK6JK1hY6wHNmtrpTf1kdbva8TCneM2YsiXT7mrzT21EacHnPpz5YyUdj64na |
+| Shelley      | bech32   | addr1vpu5vlrf4xkxv2qpwngf6cjhtw542ayty80v8dyr49rf5eg0yu80w                                                         |
+| stake        | bech32   | stake1u9u5vlrf4xkxv2qpwngf6cjhtw542ayty80v8dyr49rf5egnuvsnm                                                        |
+
+
+See https://github.com/cardano-foundation/CIPs/blob/master/CIP-0019/README.md.
+
 
 ```python
-def resolve_addr2stake(address: str) -> str:
-    """
-     same as 'echo "e1$(echo {address} | ./bech32 | tail -c 57)" |./bech32 stake'
-     It may be quicker to cache the address, result in a lookup table
-    :param address: wallet address, such as
-    addr1q9f2prypgqkrmr5497d8ujl4s4qu9hx0w6kruspdkjyudc2xjgcagrdn0jxnf47yd96p7zdpfzny30l2jh5u5vwurxasjwukdr
-    :return: stake key, such as
-    stake1g6frr4qdkd7g6dxhc35hg8cf59y2vj9la227nj33msvmkczsmnx
-    """
-    p1 = subprocess.Popen(["echo", address], stdout=subprocess.PIPE)
-    p2 = subprocess.run(['./cardano-wallet/bech32'], stdin=p1.stdout, capture_output=True)
-    s = p2.stdout.strip().decode('utf-8')
-    p3 = subprocess.Popen(["echo", s[-56:]], stdout=subprocess.PIPE)
-    p4 = subprocess.run(['./cardano-wallet/bech32', 'stake'], stdin=p3.stdout, capture_output=True)
-    return p4.stdout.strip().decode('utf-8')
+def resolve_bech32addr2stake(address: str) -> Optional[str]:
+    hrp, by = bech32.bech32_decode(address)
+    if hrp != 'addr':
+        # it may be base58
+        return None
+    words = bech32.convertbits(by, 5, 8, False)
+    res = ''
+    for w in words:
+        res = f'{res}{format(w, "x").zfill(2)}'
+    mainnet_addr = f'e1{res[-56:]}'
+    array = binascii.unhexlify(mainnet_addr)
+    words = [x for x in array]
+    bech32_words = bech32.convertbits(words, 8, 5)
+    bech32_addr = bech32.bech32_encode('stake', bech32_words)
+    return bech32_addr
 ```
+
+```ipython
+In [172]: address = 'addr1qyygx4fw97wdqj6gr2zl9xcaxr4pek3l5nd4hgcrtr9vq0trt0d9x8stdern4227k24w8yq6g6g5fg6rwxav39szej4supw4qz'
+
+In [173]: resolve_addr2stake(address)
+Out[173]: 'stake1u934hkjnrc9ku3e6490t92hrjqdydy2y5dphrwkgjcpve2cydqvjq'
+```
+
+Similar to ethereum's wallet usage of bech32
+[evmoswallet](https://github.com/evmos/evmoswallet/blob/7529c3cc06c0a4f60fce1f90bbb2d47bbc2e532a/evmoswallet/converter/__init__.py).
 
 ## Test the pipeline with a small subset of the data from `sender_reciver_amount_id` material view.
 

@@ -2,15 +2,36 @@ import unittest
 
 from src.Graph import Graph
 from src.Node import Node
-from src.resolve import resolve_addr2stake
+from src.resolve import resolve_addr2stake, resolve_addr2stake_py
 
+
+def all_equal(iterator):
+    iterator = iter(iterator)
+    try:
+        first = next(iterator)
+    except StopIteration:
+        return True
+    return all(first == x for x in iterator)
 
 class Tests(unittest.TestCase):
 
+
     def test_resolve_addr2stake(self):
-        addr = 'addr1q9f2prypgqkrmr5497d8ujl4s4qu9hx0w6kruspdkjyudc2xjgcagrdn0jxnf47yd96p7zdpfzny30l2jh5u5vwurxasjwukdr'
-        stake = resolve_addr2stake(addr)
-        self.assertEqual(stake, 'stake1u9rfyvw5pkeherf56lzxjaqlpxs53fjghl4ft6w2x8wpnwchfeam3')
+        addrs = ['addr1qyygx4fw97wdqj6gr2zl9xcaxr4pek3l5nd4hgcrtr9vq0trt0d9x8stdern4227k24w8yq6g6g5fg6rwxav39szej4supw4qz',
+              'addr1qx3zplpafymacnmw3234avrtmpham35zkxptmetp74j6jsmrt0d9x8stdern4227k24w8yq6g6g5fg6rwxav39szej4stdqf6k',
+              'addr1qxt60qght7ryz7w543ndr9qyc92e9q7lqxhlkqfp68lceqnrt0d9x8stdern4227k24w8yq6g6g5fg6rwxav39szej4sm2596p']
+        stakes = [resolve_addr2stake(a) for a in addrs]
+        self.assertTrue(all_equal(stakes))
+        self.assertEqual('stake1u934hkjnrc9ku3e6490t92hrjqdydy2y5dphrwkgjcpve2cydqvjq', stakes[0])
+
+
+    def test_resolve_addr2stake_cli(self):
+        addrs = ['addr1qyygx4fw97wdqj6gr2zl9xcaxr4pek3l5nd4hgcrtr9vq0trt0d9x8stdern4227k24w8yq6g6g5fg6rwxav39szej4supw4qz',
+              'addr1qx3zplpafymacnmw3234avrtmpham35zkxptmetp74j6jsmrt0d9x8stdern4227k24w8yq6g6g5fg6rwxav39szej4stdqf6k',
+              'addr1qxt60qght7ryz7w543ndr9qyc92e9q7lqxhlkqfp68lceqnrt0d9x8stdern4227k24w8yq6g6g5fg6rwxav39szej4sm2596p']
+        stakes = [resolve_addr2stake_cli(a) for a in addrs]
+        self.assertTrue(all_equal(stakes))
+        self.assertEqual('stake1u934hkjnrc9ku3e6490t92hrjqdydy2y5dphrwkgjcpve2cydqvjq', stakes[0])
 
     def test_pagerank(self):
         graph = Graph()
