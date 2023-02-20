@@ -1,3 +1,4 @@
+import json
 import unittest
 
 from src.Graph import Graph
@@ -14,6 +15,15 @@ def all_equal(iterator):
         return True
     return all(first == x for x in iterator)
 
+
+#https://stackoverflow.com/questions/25851183/how-to-compare-two-json-objects-with-the-same-elements-in-a-different-order-equa
+def ordered(obj):
+    if isinstance(obj, dict):
+        return sorted((k, ordered(v)) for k, v in obj.items())
+    if isinstance(obj, list):
+        return sorted(ordered(x) for x in obj)
+    else:
+        return obj
 
 class Tests(unittest.TestCase):
 
@@ -65,17 +75,34 @@ class Tests(unittest.TestCase):
         self.assertEqual(pr, [(1, 1.0), (2, 1.0), (3, 1.0), (4, 1.0), (5, 1.0), (6, 1.0)])
 
     def test_node(self):
-        parent = Node('parent')
-        child = Node('child')
+        parent = Node.fetch('parent')
+        child = Node.fetch('child')
         self.assertTrue(parent.name == 'parent')
 
         parent.link_child(child)
-        self.assertTrue(child in parent.children)
-        self.assertTrue(parent not in child.children)
+        self.assertTrue(child.name in parent.children)
+        self.assertTrue(len(parent.children) == 1)
 
         self.assertTrue(parent not in child.parents)
         child.link_parent(parent)
         self.assertTrue(parent in child.parents)
+
+        # test that children and parents are references only, not new copies of nodes
+        # we want this feature for performance, not more copies of nodes
+        self.assertTrue(parent.children[0] == child.name)
+        self.assertTrue(child.parents[0] is parent)
+
+        json_parent = parent.json()
+        load_parent = json.loads(json_parent)
+        copy_parent = Node(**load_parent)
+        original = ordered(parent.json())
+        copy = ordered(copy_parent.json())
+        self.assertTrue(original == copy)
+
+        json_child = child.json()
+        load_child = json.loads(json_child)
+        copy_child = Node(**load_child)
+        self.assertTrue(child.json() == copy_child.json())
 
     def test_graph_construction(self):
         page_rank = PageRankGraph('../data/simple.csv', 0.15, 100)

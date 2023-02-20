@@ -15,13 +15,13 @@ class Graph:
         if name in self.names_to_nodes.keys():
             return self.names_to_nodes[name]
         else:
-            new_node = Node(name)
+            new_node = Node.fetch(name)
             self.names_to_nodes[name] = new_node
             return new_node
 
-    def add_edge(self, parent, child):
-        parent_node = self.find(parent)
-        child_node = self.find(child)
+    def add_edge(self, parent_name, child_name):
+        parent_node = self.find(parent_name)
+        child_node = self.find(child_name)
 
         parent_node.link_child(child_node)
         child_node.link_parent(parent_node)
