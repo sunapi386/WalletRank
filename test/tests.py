@@ -2,7 +2,8 @@ import unittest
 
 from src.Graph import Graph
 from src.Node import Node
-from src.resolve import resolve_addr2stake, resolve_addr2stake_py
+from src.PageRank import PageRankGraph
+from src.resolve import resolve_addr2stake
 
 
 def all_equal(iterator):
@@ -13,23 +14,15 @@ def all_equal(iterator):
         return True
     return all(first == x for x in iterator)
 
+
 class Tests(unittest.TestCase):
 
-
     def test_resolve_addr2stake(self):
-        addrs = ['addr1qyygx4fw97wdqj6gr2zl9xcaxr4pek3l5nd4hgcrtr9vq0trt0d9x8stdern4227k24w8yq6g6g5fg6rwxav39szej4supw4qz',
-              'addr1qx3zplpafymacnmw3234avrtmpham35zkxptmetp74j6jsmrt0d9x8stdern4227k24w8yq6g6g5fg6rwxav39szej4stdqf6k',
-              'addr1qxt60qght7ryz7w543ndr9qyc92e9q7lqxhlkqfp68lceqnrt0d9x8stdern4227k24w8yq6g6g5fg6rwxav39szej4sm2596p']
+        addrs = [
+            'addr1qyygx4fw97wdqj6gr2zl9xcaxr4pek3l5nd4hgcrtr9vq0trt0d9x8stdern4227k24w8yq6g6g5fg6rwxav39szej4supw4qz',
+            'addr1qx3zplpafymacnmw3234avrtmpham35zkxptmetp74j6jsmrt0d9x8stdern4227k24w8yq6g6g5fg6rwxav39szej4stdqf6k',
+            'addr1qxt60qght7ryz7w543ndr9qyc92e9q7lqxhlkqfp68lceqnrt0d9x8stdern4227k24w8yq6g6g5fg6rwxav39szej4sm2596p']
         stakes = [resolve_addr2stake(a) for a in addrs]
-        self.assertTrue(all_equal(stakes))
-        self.assertEqual('stake1u934hkjnrc9ku3e6490t92hrjqdydy2y5dphrwkgjcpve2cydqvjq', stakes[0])
-
-
-    def test_resolve_addr2stake_cli(self):
-        addrs = ['addr1qyygx4fw97wdqj6gr2zl9xcaxr4pek3l5nd4hgcrtr9vq0trt0d9x8stdern4227k24w8yq6g6g5fg6rwxav39szej4supw4qz',
-              'addr1qx3zplpafymacnmw3234avrtmpham35zkxptmetp74j6jsmrt0d9x8stdern4227k24w8yq6g6g5fg6rwxav39szej4stdqf6k',
-              'addr1qxt60qght7ryz7w543ndr9qyc92e9q7lqxhlkqfp68lceqnrt0d9x8stdern4227k24w8yq6g6g5fg6rwxav39szej4sm2596p']
-        stakes = [resolve_addr2stake_cli(a) for a in addrs]
         self.assertTrue(all_equal(stakes))
         self.assertEqual('stake1u934hkjnrc9ku3e6490t92hrjqdydy2y5dphrwkgjcpve2cydqvjq', stakes[0])
 
@@ -83,6 +76,22 @@ class Tests(unittest.TestCase):
         self.assertTrue(parent not in child.parents)
         child.link_parent(parent)
         self.assertTrue(parent in child.parents)
+
+    def test_graph_construction(self):
+        page_rank = PageRankGraph('../data/simple.csv', 0.15, 100)
+        df = page_rank.output_PageRank_csv(write=False)
+        self.assertEqual(len(df), len(page_rank.graph.names_to_nodes))
+
+    def test_graph_construction_sender_receiver(self):
+        page_rank = PageRankGraph('../data/sender_receiver_amount_id-100.csv', 0.15, 100)
+        df = page_rank.output_PageRank_csv(write=False)
+        self.assertEqual(len(df), len(page_rank.graph.names_to_nodes))
+
+    def test_graph_construction_src_dst(self):
+        page_rank = PageRankGraph('../data/src_dst_amount_id-100.csv', 0.15, 100)
+        df = page_rank.output_PageRank_csv(write=False)
+        self.assertEqual(len(df), len(page_rank.graph.names_to_nodes))
+
 
 
 if __name__ == '__main__':

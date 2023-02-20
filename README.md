@@ -201,7 +201,7 @@ What we need is in 3 tables and only some columns are useful. We can build a mat
 can help out in preparing the data we need for building the WalletRank graph.
 
 ```
-dbsync=# CREATE MATERIALIZED VIEW sender_reciver_amount_id AS
+dbsync=# CREATE MATERIALIZED VIEW sender_receiver_amount_id AS
 SELECT prev_tx_out.address  sender ,
        this_tx_out.address  receiver ,
        this_tx_out.value    amount,
@@ -219,13 +219,13 @@ Time: 970864.750 ms (16:10.865)
 
 Here's 10 results from this material view
 
-### Material View Table `sender_reciver_amount_id`
+### Material View Table `sender_receiver_amount_id`
 
 This table is 33GB. It will not fit in memory.
 
 | Schema | Name                     | Type              | Owner   | Persistence | Access method | Size  | Description |
 |:-------|:-------------------------|:------------------|:--------|:------------|:--------------|:------|:------------|
-| public | sender_reciver_amount_id | materialized view | cardano | permanent   | heap          | 33 GB |             |
+| public | sender_receiver_amount_id | materialized view | cardano | permanent   | heap          | 33 GB |             |
 
 
 |                                                 sender                                                  |                                                receiver                                                 |   amount    |   tx_id   |
@@ -243,14 +243,14 @@ This table is 33GB. It will not fit in memory.
 
 This data can be dumped from the material view table as csv
 ```
-dbsync=# COPY (select * from sender_reciver_amount_id) TO '/tmp/sender_reciver_amount_id.csv'  WITH DELIMITER ',' CSV HEADER;
+dbsync=# COPY (select * from sender_receiver_amount_id) TO '/tmp/sender_receiver_amount_id.csv'  WITH DELIMITER ',' CSV HEADER;
 COPY 169393154
 Time: 214799.788 ms (03:34.800)
 ```
 
 Size is rather large at 29G.
 ```
--rw-r--r-- 1 postgres postgres 29G Feb 17 16:15 sender_reciver_amount_id.csv
+-rw-r--r-- 1 postgres postgres 29G Feb 17 16:15 sender_receiver_amount_id.csv
 ```
 ### How to derive the staking address from the payment address?
 
@@ -302,21 +302,21 @@ Out[173]: 'stake1u934hkjnrc9ku3e6490t92hrjqdydy2y5dphrwkgjcpve2cydqvjq'
 Similar to ethereum's wallet usage of bech32
 [evmoswallet](https://github.com/evmos/evmoswallet/blob/7529c3cc06c0a4f60fce1f90bbb2d47bbc2e532a/evmoswallet/converter/__init__.py).
 
-## Test the pipeline with a small subset of the data from `sender_reciver_amount_id` material view.
+## Test the pipeline with a small subset of the data from `sender_receiver_amount_id` material view.
 
 Dump 100 rows of the table as csv using `psql2csv`
 
 ```bash
-./psql2csv postgres://cardano:qwe123@mini.ds:5432/dbsync "select * from sender_reciver_amount_id limit 100" > sender_reciver_amount_id-100.csv
+./psql2csv postgres://cardano:qwe123@mini.ds:5432/dbsync "select * from sender_receiver_amount_id limit 100" > sender_receiver_amount_id-100.csv
 ```
 
 Load this into pandas (or dask, if there are many large csvs).
 
 
-In `sender_reciver_amount_id-100.csv` there are 100 rows. We can easily load to a df and use `apply`.
+In `sender_receiver_amount_id-100.csv` there are 100 rows. We can easily load to a df and use `apply`.
 
 ```python
-df = pd.read_csv('./data/sender_reciver_amount_id-100.csv')
+df = pd.read_csv('./data/sender_receiver_amount_id-100.csv')
 df['src'] = df.sender.apply(resolve_addr2stake)
 df['dst'] = df.receiver.apply(resolve_addr2stake)
 ```
