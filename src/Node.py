@@ -2,7 +2,7 @@ from typing import ForwardRef, List
 
 from pydantic.main import BaseModel
 
-from src.DB import get_db_content
+from src.DB import get_db_content, set_db_content
 
 Node = ForwardRef('Node')
 
@@ -12,17 +12,24 @@ class Node(BaseModel):
     children: List[str] = []  # not Node, otherwise maximum recursion due to self-referencing
     parents: List[Node] = []
     pagerank: float = 1.0
-
+    domain: str = ''
 
     @classmethod
-    def fetch(cls, name: str) -> "Node":
-        db_result = get_db_content(name)
+    def fetch(cls, name: str, domain: str) -> "Node":
+        db_result = get_db_content(name, domain)
         if db_result:
             # https://treyhunner.com/2018/10/asterisks-in-python-what-they-are-and-how-to-use-them/
-            return cls(**db_result)
+            node = cls(**db_result)
+            return node
         node = cls()
         node.name = name
+        node.domain = domain
         return node
+
+    def persist(self):
+        self_dict = self.dict()
+        self_dict['_id'] = self.name
+        set_db_content(self_dict, self.domain)
 
     def link_child(self, new_child):
         for child in self.children:

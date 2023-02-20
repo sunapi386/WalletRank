@@ -7,15 +7,16 @@ import dask.dataframe as dd
 
 class Graph:
 
-    def __init__(self):
+    def __init__(self, domain: str):
         self.names_to_nodes = {}
+        self.domain = domain
 
     # Return the node with the name, create and return new node if not found
     def find(self, name):
         if name in self.names_to_nodes.keys():
             return self.names_to_nodes[name]
         else:
-            new_node = Node.fetch(name)
+            new_node = Node.fetch(name, self.domain)
             self.names_to_nodes[name] = new_node
             return new_node
 
@@ -46,7 +47,7 @@ class Graph:
 
 
 def build_graph(filename):
-    graph = Graph()
+    graph = Graph(filename)
     df = dd.read_csv(filename)
 
     if 'src' in df.columns and 'dst' in df.columns:

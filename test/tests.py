@@ -25,6 +25,15 @@ def ordered(obj):
     else:
         return obj
 
+
+def drop_db_content(collection: str):
+    import pymongo
+    client = pymongo.MongoClient("mongodb://192.168.2.5:27017/")
+    db = client["walletrank"]
+    col = db[collection]
+    return col.drop()
+
+
 class Tests(unittest.TestCase):
 
     def test_resolve_addr2stake(self):
@@ -75,8 +84,9 @@ class Tests(unittest.TestCase):
         self.assertEqual(pr, [(1, 1.0), (2, 1.0), (3, 1.0), (4, 1.0), (5, 1.0), (6, 1.0)])
 
     def test_node(self):
-        parent = Node.fetch('parent')
-        child = Node.fetch('child')
+        test_domain = 'node_test'
+        parent = Node.fetch('parent', test_domain)
+        child = Node.fetch('child', test_domain)
         self.assertTrue(parent.name == 'parent')
 
         parent.link_child(child)
@@ -103,6 +113,17 @@ class Tests(unittest.TestCase):
         load_child = json.loads(json_child)
         copy_child = Node(**load_child)
         self.assertTrue(child.json() == copy_child.json())
+
+        # expect the children and parents to be recorded
+        parent.persist()
+        child.persist()
+        parent2 = Node.fetch('parent', test_domain)
+        child2 = Node.fetch('child', test_domain)
+        self.assertTrue(parent2.children == parent.children)
+        self.assertTrue(parent2.parents == parent.parents)
+        self.assertTrue(child2.children == child.children)
+        self.assertTrue(child2.parents == child.parents)
+        drop_db_content(test_domain)
 
     def test_graph_construction(self):
         page_rank = PageRankGraph('../data/simple.csv', 0.15, 100)

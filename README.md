@@ -384,7 +384,57 @@ python3 main.py -f data/src_dst_amount_id-100.csv
 ```
 The result looks like [src_dst_amount_id-100.csv](out%2Fsrc_dst_amount_id-100.csv).
 
+# Graph Mode
 
+The wallet transactions can build a graph, as mentioned in [not modeled signals](#not-modeled-signals) section.
+Essentially, the source and destination are nodes in the graph. PageRank algorithm is a graph based algorithm that
+models the existence of links as an edge in the graph. But there are not modeled signals that would be useful, and
+could be modeled easily with a more extensible graph database.
+
+### Decision Factors
+
+There are several options for graph data storage and algorithm infrastructure. The decision factors are:
+
+- Can be easily scaled to handle petabytes of data in a timely fashion.
+- Algorithms can be built on it and run easily. It would help if the data store supports a widely used querying
+  language, so that future modules can mostly plug-and-play, such as
+  - SQL, for conventional use cases.
+  - GraphQL, for more complex query modeling, such as connected components - mostly spacial patterns.
+- The data structure of a node and edge of the graph can easily be customized, with schema-as-code, to support
+  future migrations easily.
+- The data store can handle and query time-series data, identifying temporal transaction patterns. Lazy queries.
+- Performance and responsive to ingress daily transaction volumes (perhaps starting at ~100k TPS).
+- Real-time streaming, changelist event streaming. This way, clients do not need to "refresh" to get updated results.
+  Particularly useful if used in algorithm stock trading, building real-time dashboards.
+- Easily extensible, robust and modular: Data structures can be swapped out fairly easily. E.g. in the unlikely
+  event that instead of a graph, we want a high space partitioning tree -- how much effort will that be?
+
+### Options
+
+The solution may be some combinations of the below, implemented in different stages:
+
+1. Keep things in memory only, serializing to disk with parquet or even pickle; limit amount of data processed.
+   Option #1 is difficult but possible, if there is an efficient way to represent the data. Perhaps minimizing what
+   needs to be stored in memory, such as just the graph relations, and resolving large data structures, such as
+   resolving the wallet address via a lookup table.
+2. DIY data store. Model the objects in code and persist to NoSQL / SQL. This is fairly easily to get started but
+   may run into future issues, and it is hard to graph algorithms here.
+3. Apache Spark & Hive ecosystem. Databricks. These have some learning curve to get set up, but may have good
+   reusable components ready to use.
+4. Specialized pipelines for different use cases. This keeps things performant and robust but creates more overhead for
+   development.
+
+### Implementation
+
+For the initial implementation, MongoDB and Python data structure is used. See [Node.py](src%2FNode.py). Pydantic is
+used as data verification and serialization to json. As the data structure of what we need may change quickly, the
+performance can be sacrificed, until the use cases and algorithms can be better established and optimized for.
+
+# Testing
+
+To make sure the functionality of the components work through changes, see [tests.py](test%2Ftests.py). There is
+future work to setup containers, CI & CD pipelines that deploy automatically when new code is changed and all tests
+pass.
 
 # Future Work
 
